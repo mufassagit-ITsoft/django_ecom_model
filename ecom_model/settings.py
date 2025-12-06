@@ -42,9 +42,9 @@ INSTALLED_APPS = [
     #apps,
     'store',
     #mathfilters,
-    'mathfilters'
+    #'mathfilters'
     #crispy_forms,
-    'crispy_forms'
+    #'crispy_forms'
 ]
 
 # To un-block PayPal popups - NB!
