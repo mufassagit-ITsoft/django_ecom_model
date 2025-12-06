@@ -16,9 +16,6 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 
-
-
-
 def register(request):
     form = CreateUserForm()
     if request.method == 'POST':

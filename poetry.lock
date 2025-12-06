@@ -83,6 +83,18 @@ files = [
 ]
 
 [[package]]
+name = "django-six"
+version = "1.0.5"
+description = "Django-six —— Django Compatibility Library"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "django-six-1.0.5.tar.gz", hash = "sha256:9ad505d101ac3ce5a59d22693fcf77b4b19764020e0c7edfe939d220cafbf3a9"},
+    {file = "django_six-1.0.5-py2.py3-none-any.whl", hash = "sha256:50816cf52e16814dff58eacd4883d9e5a43be37e53dcbd99323d1139ff89f73b"},
+]
+
+[[package]]
 name = "pillow"
 version = "12.0.0"
 description = "Python Imaging Library (fork)"
@@ -235,4 +247,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "0fc61c742b44d3bc8f1ce3e3e0885b4b0e359ad5a3ccea6ab3e0f3b11465c60b"
+content-hash = "80581e059e2ad84843693a10f1974e62916ec5dd556f711594b307d9a069bbe2"
