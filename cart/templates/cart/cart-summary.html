@@ -24,6 +24,24 @@
           <a href="{{product.get_absolute_url}}" class="text-info text-decoration-none"> <!-- Product get absolute url -->
             <h1 class="h5 pt-2"> {{product.title}}<!-- Product title --> </h1>          
           </a>
+          
+          <!-- Stock Warning -->
+          {% if product.quantity_available == 0 %}
+              <div class="alert alert-danger" role="alert">
+                  <i class="fa fa-exclamation-triangle" aria-hidden="true"></i> 
+                  This product is out of stock and will be removed from your cart.
+              </div>
+          {% elif item.qty > product.quantity_available %}
+              <div class="alert alert-warning" role="alert">
+                  <i class="fa fa-exclamation-triangle" aria-hidden="true"></i> 
+                  Only {{ product.quantity_available }} unit(s) available. Please update quantity.
+              </div>
+          {% elif product.quantity_available < 5 %}
+              <div class="alert alert-info" role="alert">
+                  <i class="fa fa-info-circle" aria-hidden="true"></i> 
+                  Only {{ product.quantity_available }} left in stock.
+              </div>
+          {% endif %}
 
           <div class="border">  
             <div class="col border-bottom">
@@ -38,23 +56,25 @@
                 <div class="col-12">
                   <label for="select">Qty</label>
                   &nbsp; 
-                  <select id="select{{product.id}}">
+                  <select id="select{{product.id}}" {% if product.quantity_available == 0 %}disabled{% endif %}>
                     <option selected>
                         {{item.qty}}
                     </option>
                   
-                    <option value="">1</option>
-                  
-                    <option value="">2</option>
-                  
-                    <option value="">3</option>
-                  
-                    <option value="">4</option>
+                    {% if product.quantity_available > 0 %}
+                        {% for i in "1234" %}
+                            {% if forloop.counter <= product.quantity_available and forloop.counter != item.qty %}
+                                <option value="">{{ forloop.counter }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                   
                   </select>
                   <br> <br>
-                  <button type="button" data-index="{{product.id}}"
-                    class="btn btn-primary btn-sm update-button">
+                  <button type="button" 
+                          data-index="{{product.id}}"
+                          class="btn btn-primary btn-sm update-button"
+                          {% if product.quantity_available == 0 %}disabled{% endif %}>
                     Update
                   </button>
                   
@@ -64,6 +84,8 @@
                     class="btn btn-danger btn-sm delete-button">
                     Delete
                   </button>
+                  
+                  <div id="message-{{product.id}}" class="mt-2" style="display: none;"></div>
                 </div>
             </div>
             </div>
@@ -100,7 +122,6 @@
               action: 'post'
           },
           success: function(json){
-              //console.log(json)
               location.reload();
               document.getElementById("cart-qty").textContent = json.qty
               document.getElementById("total").textContent = json.total
@@ -110,10 +131,12 @@
       });
   })
 
-  // Update button
+  // Update button with error handling
   $(document).on('click', '.update-button', function(e){
     e.preventDefault();
     var theproductid = $(this).data('index');
+    var messageDiv = $('#message-' + theproductid);
+    
     $.ajax({
         type: 'POST',
         url: '{% url "cart-update" %}',
@@ -124,12 +147,30 @@
             action: 'post'
         },
         success: function(json){
-            //console.log(json)
-            location.reload();
-            document.getElementById("cart-qty").textContent = json.qty
-            document.getElementById("total").textContent = json.total
+            if (json.error) {
+                // Show error message
+                messageDiv
+                    .removeClass('alert-success')
+                    .addClass('alert alert-danger')
+                    .text(json.message)
+                    .show();
+                
+                setTimeout(function() {
+                    messageDiv.fadeOut();
+                }, 5000);
+            } else {
+                // Success - reload page
+                location.reload();
+                document.getElementById("cart-qty").textContent = json.qty
+                document.getElementById("total").textContent = json.total
+            }
         },
         error: function(xhr, errmsg, err){
+            messageDiv
+                .removeClass('alert-success')
+                .addClass('alert alert-danger')
+                .text('An error occurred. Please try again.')
+                .show();
         }
     });
 })
@@ -137,4 +178,3 @@
  </script>
 
 {% endblock %}
-

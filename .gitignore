@@ -188,6 +188,8 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+
+
 # Pyre type checker
 .pyre/
 
@@ -323,6 +325,9 @@ pyrightconfig.json
 
 # misc files
 misc.txt
+
+# backup data files
+backup.json
 
 
 # End of https://www.toptal.com/developers/gitignore/api/python,django,c++,java
