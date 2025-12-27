@@ -20,6 +20,8 @@
 
         <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 
+        <link rel="stylesheet" href="{% static 'css/base.css' %}">
+
 
         <!-- JavaScript -->
 
@@ -35,71 +37,6 @@
 	  <!-- Bootstrap Max CDN --> 
 
 	  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-    
-        <style>
-            /* Search suggestions dropdown */
-            .search-suggestions {
-                position: absolute;
-                background: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                max-height: 400px;
-                overflow-y: auto;
-                z-index: 1000;
-                width: 100%;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-
-            .suggestion-item {
-                padding: 10px 15px;
-                cursor: pointer;
-                border-bottom: 1px solid #eee;
-                display: flex;
-                align-items: center;
-            }
-
-            .suggestion-item:hover {
-                background-color: #f8f9fa;
-            }
-
-            .suggestion-item img {
-                width: 40px;
-                height: 40px;
-                object-fit: cover;
-                margin-right: 10px;
-                border-radius: 4px;
-            }
-
-            .suggestion-text {
-                flex: 1;
-            }
-
-            .suggestion-price {
-                font-weight: bold;
-                color: #2c3e50;
-            }
-
-            .no-results {
-                padding: 10px 15px;
-                color: #999;
-                text-align: center;
-            }
-
-            .search-container {
-                position: relative;
-                width: 100%;
-                max-width: 400px;
-                margin: 10px auto;
-            }
-
-            /* Make search bar always visible on mobile */
-            @media (max-width: 991px) {
-                .search-container {
-                    max-width: 100%;
-                    padding: 0 15px;
-                }
-            }
-        </style>
 
     </head>
 
@@ -151,11 +88,11 @@
                         
                         </li>
                         
-                        {% for category in all_categories %}
+                        {% for brand in all_brands %}
                         
                             <li>
 
-                                <a class="dropdown-item" href="{{category.get_absolute_url}}"> {{ category.name | capfirst }} </a>
+                                <a class="dropdown-item" href="{% url 'list-brand' brand|slugify %}"> {{ brand | capfirst }} </a>
 
                             </li>
 
