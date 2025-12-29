@@ -1,0 +1,175 @@
+<nav class="navbar navbar-expand-lg bg-primary justify-content-center">
+
+
+        <a class="navbar-brand main-heading text-white" href="{% url 'store' %}"> 
+                
+        &nbsp; &nbsp; Gamestore
+        
+        </a>
+
+
+        <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarNavDropdown"
+        aria-controls="navbarNavDropdown"
+        aria-expanded="false"
+        aria-label="Toggle navigation">
+
+        <span class="navbar-toggler-icon"></span>
+
+    </button>
+
+    
+        <div class="collapse navbar-collapse" id="navbarCollapse">
+                
+            <ul class="navbar-nav me-auto mb-2 mb-md-0">
+
+                <li class="nav-item dropdown">
+                    
+                    <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                    
+                        Video Games
+                    
+                    </a>
+                    
+                    <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+
+                        <li>
+                            
+                            <a class="dropdown-item" href="{% url 'store' %}"> All </a>
+                        
+                        </li>
+                        
+                        {% for brand in all_brands %}
+                        
+                            <li>
+
+                                <a class="dropdown-item" href="{% url 'list-brand' brand|slugify %}"> {{ brand | capfirst }} </a>
+
+                            </li>
+
+                        {% endfor %}
+
+                    </ul>
+
+                </li>
+
+            </ul>
+
+        </div>
+
+
+        <div class="collapse navbar-collapse text-center" id="navbarNavDropdown">
+
+            
+            <ul class="navbar-nav ms-auto">
+
+                {% if user.is_authenticated %}
+
+                    <li class="nav-item">
+                
+                        <a class="btn btn-alert navbar-btn text-white" type="button"  href="{% url 'dashboard' %}"> <i class="fa fa-home" aria-hidden="true"></i> &nbsp; Dashboard </a>
+
+                    </li>
+
+                    {% else %}
+
+                    <li class="nav-item">
+                
+                        <a class="btn btn-alert navbar-btn text-white" type="button"  href="{% url 'register' %}"> Register </a>
+
+                    </li>
+
+
+                {% endif %}
+
+                    
+                {% if user.is_authenticated %}
+
+                    <li class="nav-item">
+                        
+
+                        <a class="btn btn-alert navbar-btn text-white" type="button"  href="{% url 'user-logout' %}"> <i class="fa fa-sign-out" aria-hidden="true"></i> &nbsp; Logout </a>
+
+                    </li>
+
+
+                    {% else %}
+
+                        <li class="nav-item">
+
+                            <a class="btn btn-alert navbar-btn text-white" type="button"  href="{% url 'my-login' %}"> Login </a>
+
+                        </li>
+
+                {% endif %}
+
+
+                &nbsp; &nbsp; &nbsp;
+
+
+                <li class="nav-item">
+
+                    <a type="button" role="button" href="{% url 'cart-summary' %}" class="btn btn-outline-secondary"> 
+                    
+
+
+                        <i class="fa fa-shopping-cart" aria-hidden="true"> </i>
+
+                        &nbsp;
+
+                        <div id="cart-qty" class="d-inline-flex">
+
+
+                            {% with qty_amount=cart|length %}
+
+                                
+                                {% if qty_amount > 0 %}
+                            
+                                    {{ qty_amount }}
+
+
+                                    {% else %}
+
+                                        0
+
+
+                                {% endif %}
+
+
+
+                            {% endwith %}
+
+
+                        </div>
+                        
+
+
+                    </a>
+
+                </li>
+
+                &nbsp; &nbsp; &nbsp;
+        
+
+            </ul>
+
+        
+        </div>
+            <!-- Search Bar  -->
+            <form class="d-flex" role="search" method="GET" action="{% url 'search-products' %}" id="search-form">
+                    <div class="input-group">
+                        <input class="form-control" type="search" name="q" id="search-input" placeholder="Search products..." aria-label="Search" value="{{ query }}" autocomplete="off">
+                        <button class="btn btn-outline-light" type="submit">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </form>
+                <div id="search-suggestions" class="search-suggestions" style="display: none;"></div>
+            </div>
+
+
+    </nav>
