@@ -342,4 +342,4 @@ def rewards_history(request):
         'transactions': transactions,
     }
     
-    return render(request, 'account/rewards-history.html', context)
+    return render(request, 'account/rewards_hist.html', context)
