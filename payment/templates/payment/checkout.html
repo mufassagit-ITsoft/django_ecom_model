@@ -349,8 +349,16 @@
                     success: function(json){
         
                         //console.log(json)
+                        if (json.success) {
+                            // ✨ NEW: Show rewards notification
+                            if (json.rewards_earned && json.rewards_earned > 0) {
+                                alert('🎉 Order Complete!\n\n' +
+                                         'You earned $' + json.rewards_earned.toFixed(2) + 
+                                         ' in rewards!\n\nCheck your dashboard.');
+                            }
         
-                        window.location.replace("{% url 'payment-success' %}");
+                            window.location.replace("{% url 'payment-success' %}");
+                        }
         
         
                     },

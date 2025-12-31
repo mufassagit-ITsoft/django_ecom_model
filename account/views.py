@@ -7,11 +7,14 @@ from payment.models import ShippingAddress
 
 from payment.models import Order, OrderItem
 
+# Import rewards models
+from account.models import RewardAccount, RewardTransaction
+
 
 from django.contrib.auth.models import User
 
 from django.contrib.sites.shortcuts import get_current_site
-from . token import user_tokenizer_generate
+from .token import user_tokenizer_generate
 
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes, force_str
@@ -177,9 +180,18 @@ def user_logout(request):
 
 @login_required(login_url='my-login')
 def dashboard(request):
+    # Get or create reward account for the user
+    reward_account, created = RewardAccount.objects.get_or_create(user=request.user)
+    
+    # Get recent transactions (last 5)
+    recent_transactions = RewardTransaction.objects.filter(user=request.user)[:5]
+    
+    context = {
+        'reward_account': reward_account,
+        'recent_transactions': recent_transactions,
+    }
 
-
-    return render(request, 'account/dashboard.html')
+    return render(request, 'account/dashboard.html', context)
 
 
 
@@ -288,8 +300,24 @@ def track_orders(request):
     try:
 
         orders = OrderItem.objects.filter(user=request.user)
+        
+        # Get reward transactions for each order
+        order_rewards = {}
+        for order_item in orders:
+            try:
+                # Try to get the reward transaction for this order
+                reward_transaction = RewardTransaction.objects.get(
+                    user=request.user,
+                    order=order_item.order
+                )
+                order_rewards[order_item.order.id] = reward_transaction
+            except RewardTransaction.DoesNotExist:
+                order_rewards[order_item.order.id] = None
 
-        context = {'orders':orders}
+        context = {
+            'orders': orders,
+            'order_rewards': order_rewards,
+        }
 
         return render(request, 'account/track-orders.html', context=context)
 
@@ -298,3 +326,20 @@ def track_orders(request):
         return render(request, 'account/track-orders.html')
 
 
+@login_required(login_url='my-login')
+def rewards_history(request):
+    """
+    View to display complete rewards history for a user
+    """
+    # Get or create reward account
+    reward_account, created = RewardAccount.objects.get_or_create(user=request.user)
+    
+    # Get all transactions
+    transactions = RewardTransaction.objects.filter(user=request.user).order_by('-created_at')
+    
+    context = {
+        'reward_account': reward_account,
+        'transactions': transactions,
+    }
+    
+    return render(request, 'account/rewards-history.html', context)

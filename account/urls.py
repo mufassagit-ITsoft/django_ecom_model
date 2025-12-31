@@ -38,8 +38,10 @@ urlpatterns = [
 
     # Track orders url
     path('track-orders', views.track_orders, name='track-orders'),
+    
+    # Rewards history url
+    path('rewards-history', views.rewards_history, name='rewards-history'),
 ]
-
 
 
 

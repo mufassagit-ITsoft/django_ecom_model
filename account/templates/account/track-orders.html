@@ -4,6 +4,8 @@
 
 {% load crispy_forms_tags %}
 
+{% load rewards_tags %}
+
 
 {% block content %}
 
@@ -17,8 +19,36 @@
 
         }
         
-
-
+        .order-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .order-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .rewards-badge {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: bold;
+        }
+        
+        .no-rewards {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: inline-block;
+        }
 
     </style>
 
@@ -28,7 +58,7 @@
 
         <h3> <i class="fa fa-list-alt" aria-hidden="true"></i> &nbsp; My orders </h3>
 
-        <p> View all of your orders. </p>
+        <p> View all of your orders and rewards earned. </p>
 
         <hr>
 
@@ -37,30 +67,71 @@
 
     <br>
 
-    <div class="container bg-white shadow-md p-5 form-layout ">
+    <div class="container">
 
-        {% for order in orders %}
+        {% if orders %}
+            {% for order in orders %}
 
-            <strong> <i class="fa fa-list-alt" aria-hidden="true"></i> &nbsp;  Order ID # {{order.id}} </strong>
-            
-            <br> <br>
+            <div class="order-card">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5>
+                            <i class="fa fa-shopping-bag" aria-hidden="true"></i> 
+                            &nbsp; Order ID # {{order.id}} 
+                        </h5>
+                        
+                        <hr>
 
-            {{order.product}}
+                        <p><strong>Product:</strong> {{order.product}}</p>
 
-            <br> <br>
+                        <p><strong>Quantity:</strong> x {{order.quantity}}</p>
 
-            Quantity x {{order.quantity}}
+                        <p><strong>Price:</strong> ${{order.price|floatformat:2}}</p>
+                        
+                        <p class="text-muted">
+                            <small>
+                                <i class="fa fa-calendar" aria-hidden="true"></i>
+                                Ordered: {{ order.order.date_ordered|date:"F d, Y" }}
+                            </small>
+                        </p>
+                    </div>
+                    
+                    <div class="col-md-4 text-end d-flex flex-column justify-content-center align-items-end">
+                        {% if order.order.id in order_rewards and order_rewards|get_item:order.order.id %}
+                            <div class="rewards-badge mb-2">
+                                <i class="fa fa-star" aria-hidden="true"></i>
+                                <br>
+                                Rewards Earned
+                            </div>
+                            <h4 class="text-success">
+                                ${{ order_rewards|get_item:order.order.id.points_earned|floatformat:2 }}
+                            </h4>
+                            <small class="text-muted">
+                                Order Total: ${{ order_rewards|get_item:order.order.id.order_total|floatformat:2 }}
+                            </small>
+                        {% else %}
+                            <div class="no-rewards mb-2">
+                                <i class="fa fa-clock-o" aria-hidden="true"></i>
+                                <br>
+                                Processing
+                            </div>
+                            <small class="text-muted">Rewards pending</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
 
-            <br> <br>
-
-            $ {{order.price}}
-
-            <br> <br>
-
-            <hr>
-
-
-        {% endfor %}
+            {% endfor %}
+        {% else %}
+            <div class="container bg-white shadow-md p-5 form-layout text-center">
+                <i class="fa fa-shopping-cart fa-3x text-muted mb-3" aria-hidden="true"></i>
+                <h5>No orders yet</h5>
+                <p class="text-muted">Start shopping to earn rewards points!</p>
+                <a href="{% url 'store' %}" class="btn btn-primary">
+                    <i class="fa fa-shopping-bag" aria-hidden="true"></i> Start Shopping
+                </a>
+            </div>
+        {% endif %}
 
     </div>
 
