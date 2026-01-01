@@ -84,6 +84,7 @@ TEMPLATES = [
                 'cart.context_processors.cart',
                 'store.views.categories',
                 'store.views.brands',
+                'payment.views.paypal_client_id',
             ],
         },
     },
@@ -152,3 +153,5 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS')
 
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+
+PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID')

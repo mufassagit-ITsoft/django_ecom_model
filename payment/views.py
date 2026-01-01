@@ -352,6 +352,13 @@ def payment_success(request):
 
     return render(request, 'payment/payment-success.html')
 
+def paypal_client_id(request):
+    """
+    Context processor to make PayPal client-id available in all templates
+    """
+    return {
+        'paypal_client_id': settings.PAYPAL_CLIENT_ID
+    }
 
 def payment_failed(request):
     return render(request, 'payment/payment-failed.html')
