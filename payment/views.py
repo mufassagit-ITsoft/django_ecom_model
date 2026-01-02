@@ -1,37 +1,15 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from . models import ShippingAddress, Order, OrderItem
+from . models import ShippingAddress, Order, OrderItem, RefundRequest, RefundItem
 from cart.cart import Cart
 from django.http import JsonResponse
 from django.core.mail import send_mail
 from django.conf import settings
 from store.models import Product
 from decimal import Decimal
-from account.models import award_points_for_order, RewardAccount
+from account.models import award_points_for_order, RewardAccount, RewardTransaction
 from django.contrib import messages
 
-'''
-def checkout(request):
-    # Users with accounts -- Pre-fill the form
-    if request.user.is_authenticated:
-        try:
-            # Authenticated users WITH shipping information 
-            shipping_address = ShippingAddress.objects.get(user=request.user.id)
-            reward_account = RewardAccount.objects.get(user=request.user)
-            context = {'shipping': shipping_address, 'reward_account': reward_account}
-            return render(request, 'payment/checkout.html', context=context)
-        except:
-            # Authenticated users with NO shipping information
-            reward_account = RewardAccount.objects.create(
-                user=request.user,
-                total_points=0,
-                lifetime_points=0
-            )
-            return render(request, 'payment/checkout.html', context=context)
-    else:
-        # Guest users
-        return render(request, 'payment/checkout.html')
-'''
 
 def checkout(request):
     """
@@ -362,3 +340,201 @@ def paypal_client_id(request):
 
 def payment_failed(request):
     return render(request, 'payment/payment-failed.html')
+
+# Refund Views
+
+@login_required(login_url='my-login')
+def request_refund(request, order_id):
+    """
+    Allow customer to request a refund for an order
+    """
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    
+    # Check if refund already requested
+    existing_refund = RefundRequest.objects.filter(
+        order=order,
+        status__in=['PENDING_RETURN', 'PRODUCT_RECEIVED', 'PROCESSING_REFUND']
+    ).first()
+    
+    if existing_refund:
+        messages.warning(request, 'A refund request already exists for this order.')
+        return redirect('refund-status', refund_id=existing_refund.id)
+    
+    # Get order items
+    order_items = OrderItem.objects.filter(order=order)
+    
+    if request.method == 'POST':
+        reason = request.POST.get('reason')
+        reason_details = request.POST.get('reason_details', '')
+        tracking_number = request.POST.get('tracking_number', '')
+        
+        # Calculate refund amount
+        refund_amount = order.amount_paid
+        
+        # Check if rewards were used in this order
+        rewards_used = Decimal('0.00')
+        try:
+            redemption = RewardTransaction.objects.get(
+                user=request.user,
+                order=order,
+                transaction_type='REDEEMED'
+            )
+            rewards_used = abs(redemption.points_earned)  # Make positive
+        except RewardTransaction.DoesNotExist:
+            pass
+        
+        # Create refund request
+        refund_request = RefundRequest.objects.create(
+            order=order,
+            user=request.user,
+            customer_email=request.user.email,
+            customer_name=request.user.username,
+            status='PENDING_RETURN',
+            reason=reason,
+            reason_details=reason_details,
+            refund_amount=refund_amount,
+            rewards_used=rewards_used,
+            tracking_number=tracking_number
+        )
+        
+        # Create refund items
+        for order_item in order_items:
+            RefundItem.objects.create(
+                refund_request=refund_request,
+                order_item=order_item,
+                quantity_to_refund=order_item.quantity,
+                refund_amount=order_item.price * order_item.quantity
+            )
+        
+        messages.success(
+            request,
+            'Refund request submitted successfully! Please ship the product(s) back to us.'
+        )
+        return redirect('refund-status', refund_id=refund_request.id)
+    
+    context = {
+        'order': order,
+        'order_items': order_items,
+    }
+    
+    return render(request, 'payment/request-refund.html', context)
+
+
+@login_required(login_url='my-login')
+def refund_status(request, refund_id):
+    """
+    Display refund request status to customer
+    """
+    refund = get_object_or_404(
+        RefundRequest,
+        id=refund_id,
+        user=request.user
+    )
+    
+    # Check if customer can cancel
+    can_cancel = refund.can_cancel()
+    
+    # Handle cancellation
+    if request.method == 'POST' and 'cancel_refund' in request.POST:
+        if can_cancel:
+            refund.status = 'CANCELLED'
+            refund.save()
+            messages.success(request, 'Refund request cancelled.')
+            return redirect('track-orders')
+        else:
+            messages.error(request, 'This refund request cannot be cancelled at this stage.')
+    
+    # Get refund items
+    refund_items = refund.items.all()
+    
+    context = {
+        'refund': refund,
+        'refund_items': refund_items,
+        'can_cancel': can_cancel,
+    }
+    
+    return render(request, 'payment/refund-status.html', context)
+
+
+def guest_refund_request(request):
+    """
+    Allow guest users to request refunds
+    """
+    if request.method == 'POST':
+        order_id = request.POST.get('order_id')
+        email = request.POST.get('email')
+        reason = request.POST.get('reason')
+        reason_details = request.POST.get('reason_details', '')
+        tracking_number = request.POST.get('tracking_number', '')
+        
+        try:
+            # Find order by ID and email (guest orders have no user)
+            order = Order.objects.get(id=order_id, email=email, user__isnull=True)
+            
+            # Check if refund already requested
+            existing_refund = RefundRequest.objects.filter(
+                order=order,
+                status__in=['PENDING_RETURN', 'PRODUCT_RECEIVED', 'PROCESSING_REFUND']
+            ).first()
+            
+            if existing_refund:
+                messages.warning(request, 'A refund request already exists for this order.')
+                return redirect('guest-refund-status', refund_id=existing_refund.id)
+            
+            # Create refund request
+            refund_request = RefundRequest.objects.create(
+                order=order,
+                user=None,
+                customer_email=email,
+                customer_name=order.full_name,
+                status='PENDING_RETURN',
+                reason=reason,
+                reason_details=reason_details,
+                refund_amount=order.amount_paid,
+                rewards_used=Decimal('0.00'),  # Guest users don't have rewards
+                tracking_number=tracking_number
+            )
+            
+            # Create refund items
+            order_items = OrderItem.objects.filter(order=order)
+            for order_item in order_items:
+                RefundItem.objects.create(
+                    refund_request=refund_request,
+                    order_item=order_item,
+                    quantity_to_refund=order_item.quantity,
+                    refund_amount=order_item.price * order_item.quantity
+                )
+            
+            messages.success(
+                request,
+                f'Refund request submitted successfully! Reference ID: {refund_request.id}. Please ship the product(s) back to us.'
+            )
+            return redirect('guest-refund-status', refund_id=refund_request.id)
+            
+        except Order.DoesNotExist:
+            messages.error(request, 'Order not found. Please check your order ID and email.')
+    
+    return render(request, 'payment/guest-refund-request.html')
+
+
+def guest_refund_status(request, refund_id):
+    """
+    Display refund status for guest users
+    """
+    refund = get_object_or_404(RefundRequest, id=refund_id, user__isnull=True)
+    
+    # Verify email for security
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        if email != refund.customer_email:
+            messages.error(request, 'Invalid email address.')
+            return redirect('guest-refund-request')
+    
+    refund_items = refund.items.all()
+    
+    context = {
+        'refund': refund,
+        'refund_items': refund_items,
+    }
+    
+    return render(request, 'payment/guest-refund-status.html', context)
