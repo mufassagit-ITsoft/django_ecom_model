@@ -26,13 +26,12 @@ class RefundItemInline(admin.TabularInline):
 class RefundRequestAdmin(admin.ModelAdmin):
     list_display = [
         'id',
-        'order_link',
+        'order_id_simple',  # Changed from order_link - NO FORMAT_HTML
         'customer_info',
-        'refund_amount_display',
-        'status_badge',
+        'refund_amount_simple',  # Changed - SIMPLIFIED
+        'status_simple',  # Changed - SIMPLIFIED
         'reason',
         'created_at',
-        'action_buttons'
     ]
     
     list_filter = ['status', 'reason', 'created_at']
@@ -83,78 +82,50 @@ class RefundRequestAdmin(admin.ModelAdmin):
         'reject_refund'
     ]
     
-    def order_link(self, obj):
-        """Clickable link to order"""
-        url = reverse('admin:payment_order_change', args=[obj.order.id])
-        return format_html('<a href="{}">Order #{}</a>', url, obj.order.id)
-    order_link.short_description = 'Order'
+    # SIMPLIFIED METHODS - NO FORMAT_HTML AT ALL
+    
+    def order_id_simple(self, obj):
+        """Simple order ID - plain text, no formatting"""
+        try:
+            if obj and obj.order and obj.order.id:
+                return f"Order #{obj.order.id}"
+            return "-"
+        except Exception as e:
+            return f"Error: {e}"
+    order_id_simple.short_description = 'Order'
     
     def customer_info(self, obj):
         """Display customer information"""
-        if obj.user:
-            return format_html(
-                '<strong>{}</strong><br><small>{}</small>',
-                obj.user.username,
-                obj.customer_email
-            )
-        return format_html(
-            '<strong>Guest</strong><br><small>{}</small>',
-            obj.customer_email
-        )
+        try:
+            if obj.user:
+                return f"{obj.user.username} ({obj.customer_email})"
+            return f"Guest ({obj.customer_email})"
+        except Exception as e:
+            return f"Error: {e}"
     customer_info.short_description = 'Customer'
     
-    def refund_amount_display(self, obj):
-        """Display refund amount with rewards info"""
-        html = format_html('<strong>${:.2f}</strong>', obj.refund_amount)
-        if obj.rewards_used > 0:
-            html += format_html(
-                '<br><small style="color: #dc3545;">Rewards: ${:.2f}</small>',
-                obj.rewards_used
-            )
-        return html
-    refund_amount_display.short_description = 'Refund Amount'
+    def refund_amount_simple(self, obj):
+        """Simple refund amount display"""
+        try:
+            amount = f"${float(obj.refund_amount):.2f}"
+            if obj.rewards_used > 0:
+                amount += f" (Rewards: ${float(obj.rewards_used):.2f})"
+            return amount
+        except Exception as e:
+            return f"Error: {e}"
+    refund_amount_simple.short_description = 'Refund Amount'
     
-    def status_badge(self, obj):
-        """Display status as colored badge"""
-        return format_html(
-            '<span style="background-color: {}; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold;">{}</span>',
-            self._get_status_color(obj.status),
-            obj.get_status_display()
-        )
-    status_badge.short_description = 'Status'
+    def status_simple(self, obj):
+        """Simple status display"""
+        try:
+            return obj.get_status_display()
+        except Exception as e:
+            return f"Error: {e}"
+    status_simple.short_description = 'Status'
     
-    def _get_status_color(self, status):
-        """Get color for status badge"""
-        colors = {
-            'PENDING_RETURN': '#ffc107',  # Yellow
-            'PRODUCT_RECEIVED': '#17a2b8',  # Blue
-            'PROCESSING_REFUND': '#007bff',  # Dark blue
-            'COMPLETED': '#28a745',  # Green
-            'REJECTED': '#dc3545',  # Red
-            'CANCELLED': '#6c757d',  # Gray
-        }
-        return colors.get(status, '#6c757d')
-    
-    def action_buttons(self, obj):
-        """Display quick action buttons"""
-        buttons = []
-        
-        if obj.status == 'PENDING_RETURN':
-            buttons.append(
-                '<span style="background-color: #17a2b8; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">Waiting for Return</span>'
-            )
-        
-        if obj.status == 'PRODUCT_RECEIVED':
-            buttons.append(
-                '<span style="background-color: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">Ready to Process</span>'
-            )
-        
-        return format_html(' '.join(buttons)) if buttons else '-'
-    action_buttons.short_description = 'Quick Actions'
-    
-    # ═══════════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════
     # ADMIN ACTIONS
-    # ═══════════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════
     
     def mark_product_received(self, request, queryset):
         """Mark selected refunds as product received"""
@@ -263,6 +234,8 @@ class RefundItemAdmin(admin.ModelAdmin):
     
     def product_name(self, obj):
         """Display product name"""
-        return obj.order_item.product.title
+        try:
+            return obj.order_item.product.title
+        except Exception as e:
+            return f"Error: {e}"
     product_name.short_description = 'Product'
-

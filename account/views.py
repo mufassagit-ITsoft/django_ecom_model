@@ -296,10 +296,16 @@ def manage_shipping(request):
 
 @login_required(login_url='my-login')
 def track_orders(request):
-
+    """
+    Display all orders for the logged-in user with rewards information
+    """
     try:
-
-        orders = OrderItem.objects.filter(user=request.user)
+        # Get all order items for this user
+        orders = OrderItem.objects.filter(user=request.user).select_related('order', 'product')
+        
+        # Debug: Print to console
+        print(f"DEBUG track_orders - User: {request.user.username}")
+        print(f"DEBUG track_orders - Orders count: {orders.count()}")
         
         # Get reward transactions for each order
         order_rewards = {}
@@ -308,22 +314,37 @@ def track_orders(request):
                 # Try to get the reward transaction for this order
                 reward_transaction = RewardTransaction.objects.get(
                     user=request.user,
-                    order=order_item.order
+                    order=order_item.order,
+                    transaction_type='PURCHASE'
                 )
                 order_rewards[order_item.order.id] = reward_transaction
             except RewardTransaction.DoesNotExist:
+                # No rewards transaction found for this order
                 order_rewards[order_item.order.id] = None
+            except RewardTransaction.MultipleObjectsReturned:
+                # Multiple transactions found, get the first one
+                reward_transaction = RewardTransaction.objects.filter(
+                    user=request.user,
+                    order=order_item.order,
+                    transaction_type='PURCHASE'
+                ).first()
+                order_rewards[order_item.order.id] = reward_transaction
 
         context = {
             'orders': orders,
             'order_rewards': order_rewards,
         }
 
-        return render(request, 'account/track-orders.html', context=context)
-
-    except:
-
-        return render(request, 'account/track-orders.html')
+        return render(request, 'account/track-orders.html', context)
+        
+    except Exception as e:
+        # Catch any errors and print them
+        print(f"ERROR in track_orders: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return empty context so page doesn't crash
+        return render(request, 'account/track-orders.html', {'orders': []})
 
 
 @login_required(login_url='my-login')
