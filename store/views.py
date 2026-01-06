@@ -72,3 +72,14 @@ def search_products(request):
         'product_count': products.count()
     }
     return render(request, 'store/search-results.html', context)
+
+'''
+The Q module is used for advanced Django query. Whereas a 
+filter() is used to filter any data, as is here, that would
+be title, brand, and description. With Q, it is done by the use
+of tranditional filter, with the use of Q(args). The args
+would be any of the title, brand and/or description that would 
+then be the query variable as it is transalted in their search 
+html pages. 
+
+'''

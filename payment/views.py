@@ -7,7 +7,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from store.models import Product
 from decimal import Decimal
-from account.models import award_points_for_order, RewardAccount
+from account.models import award_points_for_order, RewardAccount, RewardTransaction
 from django.contrib import messages
 
 '''
@@ -337,8 +337,8 @@ def payment_success(request):
             # Call the reward function
             reward_transaction = award_points_for_order(
                 user=request.user,
-                order=order,
-                order_total=order_total
+                #order=order,
+                #order_total=order_total
             )
             
             # Add a success message

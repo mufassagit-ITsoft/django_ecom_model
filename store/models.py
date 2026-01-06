@@ -15,6 +15,15 @@ class Category(models.Model):
 
     def get_absolute_url(self):
         return reverse('list-category', args=[self.slug])
+    
+'''
+Auto-slug generation: The slug field automatically populates 
+based on the category name as you type. If you type in a category
+and it will then translate it into a slug. A category, such as
+Nintendo Switch would have the slug nintendo-switch. The slug would 
+have a dash in the middle. It eeps the admin interface clean and 
+simple for categories.
+'''
 
 class Product(models.Model):
     #FK 
@@ -25,6 +34,14 @@ class Product(models.Model):
     slug = models.SlugField(max_length=255)
     price = models.DecimalField(max_digits=4, decimal_places=2)
     image = models.ImageField(upload_to='images/')
+
+    '''
+    The variable image can be done in one of two ways.
+    One is by the way of the admin page, as it is done on this
+    data model for class Product. The other way is via html 
+    display and doing it this way. The former was chosen, to 
+    keep images in control via a superuser for the admin page.
+    '''
 
     # Inventory and Sales Tracking Fields
     date_uploaded = models.DateTimeField(auto_now_add=True, help_text="Date when product was first added")
