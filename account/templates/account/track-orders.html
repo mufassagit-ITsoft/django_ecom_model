@@ -10,13 +10,8 @@
 {% block content %}
 
     <style>
-
-
         body{
-
-
             background-color: gray;
-
         }
         
         .order-card {
@@ -49,26 +44,34 @@
             border-radius: 20px;
             display: inline-block;
         }
-
+        
+        .refund-status-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .refund-pending_return { background-color: #ffc107; color: #000; }
+        .refund-product_received { background-color: #17a2b8; color: white; }
+        .refund-processing_refund { background-color: #007bff; color: white; }
+        .refund-completed { background-color: #28a745; color: white; }
+        .refund-rejected { background-color: #dc3545; color: white; }
     </style>
 
     <br>
 
     <div class="container bg-white shadow-md p-5 form-layout ">
-
         <h3> <i class="fa fa-list-alt" aria-hidden="true"></i> &nbsp; My orders </h3>
-
         <p> View all of your orders and rewards earned. </p>
-
         <hr>
-
-
     </div>
 
     <br>
 
     <div class="container">
-
         {% if orders %}
             {% for order in orders %}
 
@@ -77,16 +80,14 @@
                     <div class="col-md-8">
                         <h5>
                             <i class="fa fa-shopping-bag" aria-hidden="true"></i> 
-                            &nbsp; Order ID # {{order.id}} 
+                            &nbsp; Order ID # {{ order.order.id }}
                         </h5>
                         
                         <hr>
 
-                        <p><strong>Product:</strong> {{order.product}}</p>
-
-                        <p><strong>Quantity:</strong> x {{order.quantity}}</p>
-
-                        <p><strong>Price:</strong> ${{order.price|floatformat:2}}</p>
+                        <p><strong>Product:</strong> {{ order.product }}</p>
+                        <p><strong>Quantity:</strong> x {{ order.quantity }}</p>
+                        <p><strong>Price:</strong> ${{ order.price|floatformat:2 }}</p>
                         
                         <p class="text-muted">
                             <small>
@@ -94,29 +95,55 @@
                                 Ordered: {{ order.order.date_ordered|date:"F d, Y" }}
                             </small>
                         </p>
+                        
+                        <!-- Refund Status Display / Request Button -->
+                        {% if order.order.refund_requests.exists %}
+                            {% for refund in order.order.refund_requests.all %}
+                                {% if refund.status != 'CANCELLED' %}
+                                <div class="mt-2">
+                                    <span class="refund-status-badge refund-{{ refund.status|lower }}">
+                                        <i class="fa fa-undo" aria-hidden="true"></i>
+                                        Refund: {{ refund.get_status_display }}
+                                    </span>
+                                    <a href="{% url 'refund-status' refund.id %}" class="btn btn-sm btn-outline-primary">
+                                        View Status
+                                    </a>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <!-- Request Refund Button -->
+                            <div class="mt-3">
+                                <a href="{% url 'request-refund' order.order.id %}" class="btn btn-outline-danger btn-sm">
+                                    <i class="fa fa-undo" aria-hidden="true"></i> Request Refund
+                                </a>
+                            </div>
+                        {% endif %}
                     </div>
                     
                     <div class="col-md-4 text-end d-flex flex-column justify-content-center align-items-end">
-                        {% if order.order.id in order_rewards and order_rewards|get_item:order.order.id %}
-                            <div class="rewards-badge mb-2">
-                                <i class="fa fa-star" aria-hidden="true"></i>
-                                <br>
-                                Rewards Earned
-                            </div>
-                            <h4 class="text-success">
-                                ${{ order_rewards|get_item:order.order.id.points_earned|floatformat:2 }}
-                            </h4>
-                            <small class="text-muted">
-                                Order Total: ${{ order_rewards|get_item:order.order.id.order_total|floatformat:2 }}
-                            </small>
-                        {% else %}
-                            <div class="no-rewards mb-2">
-                                <i class="fa fa-clock-o" aria-hidden="true"></i>
-                                <br>
-                                Processing
-                            </div>
-                            <small class="text-muted">Rewards pending</small>
-                        {% endif %}
+                        {% with reward_transaction=order_rewards|get_item:order.order.id %}
+                            {% if reward_transaction %}
+                                <div class="rewards-badge mb-2">
+                                    <i class="fa fa-star" aria-hidden="true"></i>
+                                    <br>
+                                    Rewards Earned
+                                </div>
+                                <h4 class="text-success">
+                                    ${{ reward_transaction.points_earned|floatformat:2 }}
+                                </h4>
+                                <small class="text-muted">
+                                    Order Total: ${{ reward_transaction.order_total|floatformat:2 }}
+                                </small>
+                            {% else %}
+                                <div class="no-rewards mb-2">
+                                    <i class="fa fa-clock-o" aria-hidden="true"></i>
+                                    <br>
+                                    Processing
+                                </div>
+                                <small class="text-muted">Rewards pending</small>
+                            {% endif %}
+                        {% endwith %}
                     </div>
                 </div>
             </div>
@@ -132,7 +159,6 @@
                 </a>
             </div>
         {% endif %}
-
     </div>
 
     <br>
