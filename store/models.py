@@ -2,8 +2,29 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+class Topic(models.Model):
+    name = models.CharField(max_length=250, db_index=True)
+    slug = models.SlugField(max_length=250, unique=True)
+
+    class Meta:
+        verbose_name_plural = 'topics'
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('list-topic', args=[self.slug])
+
 
 class Category(models.Model):
+    topic = models.ForeignKey(
+        Topic,
+        related_name='categories',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The topic this category belongs to (e.g. Video Games)"
+    )
     name = models.CharField(max_length=250, db_index=True)
     slug = models.SlugField(max_length=250, unique=True)
 

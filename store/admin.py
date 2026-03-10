@@ -1,6 +1,9 @@
 from django.contrib import admin
-from . models import Category, Product
+from . models import Category, Product, Topic
 
+@admin.register(Topic)
+class TopicAdmin(admin.ModelAdmin):
+    prepopulated_fields = {'slug': ('name',)}
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):

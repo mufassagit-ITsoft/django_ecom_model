@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import User
-from store.models import Product
 
 
 class ShippingAddress(models.Model):
@@ -59,7 +58,7 @@ class Order(models.Model):
 class OrderItem(models.Model):
     # FK -> 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, null=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)
+    product = models.ForeignKey('store.Product', on_delete=models.CASCADE, null=True)
     quantity = models.PositiveBigIntegerField(default=1)
     price = models.DecimalField(max_digits=8, decimal_places=2)    
     # FK
@@ -114,8 +113,8 @@ class RefundRequest(models.Model):
     reason_details = models.TextField(blank=True, help_text="Additional details about the refund reason")
     
     # Refund amount
-    refund_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    rewards_used = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Rewards points used in original purchase")
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Amount to refund via PayPal (order.amount_paid - what customer actually paid in cash)")
+    rewards_used = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Rewards used in original purchase. NOT automatically restored - admin must manually approve via 'Restore rewards as goodwill' action")
     
     # Tracking
     tracking_number = models.CharField(max_length=200, blank=True, help_text="Customer's return tracking number")
@@ -191,9 +190,16 @@ def process_rewards_refund(refund_request):
     """
     Adjust rewards when processing a refund for registered users
     
+    IMPORTANT: This function ONLY deducts earned rewards, it does NOT restore used rewards.
+    Used rewards are only restored if an admin manually approves it via admin action.
+    
     Actions:
-    1. Restore rewards points that were used in the purchase
-    2. Deduct rewards points that were earned from the purchase
+    1. Deduct rewards points that were earned from the purchase
+    
+    Note: Rewards used during purchase are NOT automatically restored because:
+    - Customer is already getting cash refund for amount_paid
+    - Restoring rewards would give double value
+    - Admin can manually restore rewards as goodwill gesture if approved
     """
     from account.models import RewardAccount, RewardTransaction
     from decimal import Decimal
@@ -205,22 +211,7 @@ def process_rewards_refund(refund_request):
     try:
         reward_account = RewardAccount.objects.get(user=refund_request.user)
         
-        # STEP 1: Restore rewards that were used (if any)
-        if refund_request.rewards_used > 0:
-            reward_account.total_points += refund_request.rewards_used
-            reward_account.save()
-            
-            # Create transaction record
-            RewardTransaction.objects.create(
-                user=refund_request.user,
-                order=refund_request.order,
-                order_total=refund_request.order.amount_paid,
-                points_earned=refund_request.rewards_used,  # Positive - restoring points
-                transaction_type='ADJUSTMENT',
-                description=f'Rewards restored from refunded order #{refund_request.order.id}'
-            )
-        
-        # STEP 2: Deduct rewards that were earned from this purchase
+        # ONLY ACTION: Deduct rewards that were earned from this purchase
         try:
             earned_transaction = RewardTransaction.objects.get(
                 user=refund_request.user,
@@ -267,5 +258,63 @@ def restock_refunded_items(refund_request):
             refund_item.save()
 
 
-
+def restore_used_rewards(refund_request):
+    """
+    Manually restore rewards that were used in the original purchase.
+    
+    This is an ADMIN-ONLY action for goodwill gestures or special cases.
+    Should only be used when customer deserves both cash refund AND reward restoration.
+    
+    Example use cases:
+    - Defective product (not customer's fault)
+    - Company error (sent wrong item)
+    - Goodwill gesture for valued customer
+    
+    DO NOT use for:
+    - Changed mind refunds
+    - Buyer's remorse
+    - Normal return situations
+    """
+    from account.models import RewardAccount, RewardTransaction
+    from decimal import Decimal
+    
+    # Only process if user is registered and rewards were used
+    if not refund_request.user or refund_request.rewards_used <= 0:
+        return False
+    
+    try:
+        reward_account = RewardAccount.objects.get(user=refund_request.user)
         
+        # Check if rewards were already restored
+        existing_restoration = RewardTransaction.objects.filter(
+            user=refund_request.user,
+            order=refund_request.order,
+            transaction_type='ADMIN_ADJUSTMENT',
+            description__icontains='Rewards restored by admin'
+        ).exists()
+        
+        if existing_restoration:
+            return False  # Already restored
+        
+        # Restore the rewards
+        reward_account.total_points += refund_request.rewards_used
+        reward_account.save()
+        
+        # Create transaction record
+        RewardTransaction.objects.create(
+            user=refund_request.user,
+            order=refund_request.order,
+            order_total=refund_request.order.amount_paid,
+            points_earned=refund_request.rewards_used,  # Positive - restoring points
+            transaction_type='ADMIN_ADJUSTMENT',
+            description=f'Rewards restored by admin as goodwill gesture for refund #{refund_request.id}'
+        )
+        
+        return True
+        
+    except RewardAccount.DoesNotExist:
+        return False
+
+
+
+    

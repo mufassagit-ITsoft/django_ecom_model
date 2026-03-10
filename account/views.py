@@ -336,7 +336,6 @@ def track_orders(request):
         }
 
         return render(request, 'account/track-orders.html', context)
-        
     except Exception as e:
         # Catch any errors and print them
         print(f"ERROR in track_orders: {e}")
@@ -345,6 +344,8 @@ def track_orders(request):
         
         # Return empty context so page doesn't crash
         return render(request, 'account/track-orders.html', {'orders': []})
+        
+    
 
 
 @login_required(login_url='my-login')

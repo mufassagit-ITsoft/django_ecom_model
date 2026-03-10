@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from . models import Category, Product
+from . models import Category, Product, Topic
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.template.loader import render_to_string
@@ -20,7 +20,19 @@ def brands(request):
     all_brands = Product.objects.values_list('brand', flat=True).distinct().order_by('brand')
     # Filter out empty brands and 'un-branded'
     all_brands = [brand for brand in all_brands if brand and brand.lower() != 'un-branded']
-    return {'all_brands': all_brands}
+    all_topics = Topic.objects.all().order_by('name')
+    return {'all_brands': all_brands, 'all_topics': all_topics,}
+
+def list_topics(request, topic_slug=None):
+    topic = get_object_or_404(Topic, slug=topic_slug)
+    categories = Category.objects.filter(topic=topic)
+    products = Product.objects.filter(category__in=categories)
+    context = {
+        'topic': topic,
+        'products': products,
+        'product_count': products.count(),
+    }
+    return render(request, 'store/list-topic.html', context)
 
 def list_category(request, category_slug=None):
     category = get_object_or_404(Category, slug=category_slug)
@@ -53,7 +65,6 @@ def search_products(request):
     query = request.GET.get('q', '')
     is_ajax = request.GET.get('ajax', '') == '1'
     if query:
-        # Search in product title, brand, and description
         products = Product.objects.filter(
             Q(title__icontains=query) | 
             Q(brand__icontains=query) | 

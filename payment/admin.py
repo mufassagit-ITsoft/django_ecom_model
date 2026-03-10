@@ -20,6 +20,9 @@ class RefundItemInline(admin.TabularInline):
     
     def has_add_permission(self, request, obj=None):
         return False  # Items are added when refund request is created
+    
+    class Meta:
+        help_text = "Note: Items are automatically marked as 'condition acceptable' when you use the 'Mark product received & restock' action. Uncheck any items that are damaged or not acceptable before processing."
 
 
 @admin.register(RefundRequest)
@@ -77,8 +80,10 @@ class RefundRequestAdmin(admin.ModelAdmin):
     
     actions = [
         'mark_product_received',
+        'manual_restock_items',
         'process_paypal_refund',
         'complete_refund',
+        'restore_rewards_goodwill',
         'reject_refund'
     ]
     
@@ -137,6 +142,9 @@ class RefundRequestAdmin(admin.ModelAdmin):
             refund.product_received_at = timezone.now()
             refund.save()
             
+            # Automatically mark all items as acceptable condition (admin can manually change later if needed)
+            refund.items.all().update(condition_acceptable=True)
+            
             # Restock items if condition acceptable
             try:
                 restock_refunded_items(refund)
@@ -155,6 +163,37 @@ class RefundRequestAdmin(admin.ModelAdmin):
             level=messages.SUCCESS
         )
     mark_product_received.short_description = '✓ Mark product received & restock'
+    
+    def manual_restock_items(self, request, queryset):
+        """Manually restock items for refunds where products have been received"""
+        from .models import restock_refunded_items
+        
+        restocked_count = 0
+        for refund in queryset.filter(status__in=['PRODUCT_RECEIVED', 'PROCESSING_REFUND', 'COMPLETED']):
+            try:
+                # This will restock any items marked as condition_acceptable that haven't been restocked yet
+                restock_refunded_items(refund)
+                restocked_count += 1
+            except Exception as e:
+                self.message_user(
+                    request,
+                    f'Error restocking items for refund #{refund.id}: {e}',
+                    level=messages.ERROR
+                )
+        
+        if restocked_count > 0:
+            self.message_user(
+                request,
+                f'Manually restocked items for {restocked_count} refund(s).',
+                level=messages.SUCCESS
+            )
+        else:
+            self.message_user(
+                request,
+                'No items were restocked. Items may already be restocked or not marked as acceptable condition.',
+                level=messages.WARNING
+            )
+    manual_restock_items.short_description = '🔄 Manually restock acceptable items'
     
     def process_paypal_refund(self, request, queryset):
         """Process PayPal refund (manual - admin must do this in PayPal)"""
@@ -178,6 +217,7 @@ class RefundRequestAdmin(admin.ModelAdmin):
         updated = 0
         for refund in queryset.filter(status='PROCESSING_REFUND'):
             # Process rewards adjustments for registered users
+            # NOTE: This ONLY deducts earned rewards, does NOT restore used rewards
             if refund.user:
                 try:
                     process_rewards_refund(refund)
@@ -196,7 +236,8 @@ class RefundRequestAdmin(admin.ModelAdmin):
         
         self.message_user(
             request,
-            f'{updated} refund(s) completed successfully. Rewards have been adjusted for registered users.',
+            f'{updated} refund(s) completed successfully. Earned rewards have been deducted. '
+            f'Used rewards were NOT restored (use "Restore rewards as goodwill" if approved).',
             level=messages.SUCCESS
         )
     complete_refund.short_description = '✓ Complete refund & adjust rewards'
@@ -213,6 +254,67 @@ class RefundRequestAdmin(admin.ModelAdmin):
             level=messages.WARNING
         )
     reject_refund.short_description = '✗ Reject refund request'
+    
+    def restore_rewards_goodwill(self, request, queryset):
+        """
+        Manually restore used rewards as a goodwill gesture (ADMIN APPROVAL REQUIRED)
+        
+        Use this ONLY for special cases:
+        - Defective products (not customer's fault)
+        - Company errors (wrong item sent)
+        - Goodwill gestures for valued customers
+        
+        DO NOT use for normal returns or changed mind refunds.
+        """
+        from .models import restore_used_rewards
+        
+        restored_count = 0
+        no_rewards_count = 0
+        already_restored_count = 0
+        guest_count = 0
+        
+        for refund in queryset:
+            # Check if this is a guest order
+            if not refund.user:
+                guest_count += 1
+                continue
+            
+            # Check if rewards were used
+            if refund.rewards_used <= 0:
+                no_rewards_count += 1
+                continue
+            
+            # Try to restore rewards
+            success = restore_used_rewards(refund)
+            if success:
+                restored_count += 1
+            else:
+                already_restored_count += 1
+        
+        # Build message
+        messages_list = []
+        if restored_count > 0:
+            messages_list.append(f'{restored_count} customer(s) had ${sum([r.rewards_used for r in queryset if r.user and r.rewards_used > 0]):.2f} in rewards restored')
+        if already_restored_count > 0:
+            messages_list.append(f'{already_restored_count} already had rewards restored')
+        if no_rewards_count > 0:
+            messages_list.append(f'{no_rewards_count} had no rewards used in original purchase')
+        if guest_count > 0:
+            messages_list.append(f'{guest_count} were guest orders (no rewards to restore)')
+        
+        if restored_count > 0:
+            self.message_user(
+                request,
+                'Rewards restored as goodwill gesture: ' + ', '.join(messages_list),
+                level=messages.SUCCESS
+            )
+        else:
+            self.message_user(
+                request,
+                'No rewards restored: ' + ', '.join(messages_list),
+                level=messages.WARNING
+            )
+    restore_rewards_goodwill.short_description = '💝 Restore used rewards as goodwill (ADMIN APPROVAL)'
 
 
 @admin.register(RefundItem)

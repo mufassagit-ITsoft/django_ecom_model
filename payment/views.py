@@ -12,9 +12,9 @@ from django.contrib import messages
 
 
 def checkout(request):
-    """
-    Checkout view with rewards integration - FIXED VERSION
-    """
+    
+    #Checkout view with rewards integration
+    
     cart = Cart(request)
     cart_total = cart.get_total()
     
