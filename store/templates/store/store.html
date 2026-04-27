@@ -16,8 +16,11 @@
                 </p>
                 <br>
         
-                <a href="{% url 'register' %}" class="btn btn-primary my-2"> <i class="fa fa-user-plus" aria-hidden="true"></i> &nbsp; Create an account </a> 
-            </div>
+               {% if not user.is_authenticated %}
+                    <a href="{% url 'register' %}" class="btn btn-primary my-2">
+                        <i class="fa fa-user-plus" aria-hidden="true"></i> &nbsp; Create an account
+                    </a>
+                {% endif %}
         </div>
     </section>
 

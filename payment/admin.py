@@ -29,10 +29,12 @@ class RefundItemInline(admin.TabularInline):
 class RefundRequestAdmin(admin.ModelAdmin):
     list_display = [
         'id',
-        'order_id_simple',  # Changed from order_link - NO FORMAT_HTML
+        'order_id_simple',
         'customer_info',
-        'refund_amount_simple',  # Changed - SIMPLIFIED
-        'status_simple',  # Changed - SIMPLIFIED
+        'customer_type',       # Guest vs Registered
+        'refund_amount_simple',
+        'status_simple',
+        'verification_status', # Admin-verified gate
         'reason',
         'created_at',
     ]
@@ -51,7 +53,9 @@ class RefundRequestAdmin(admin.ModelAdmin):
         'created_at',
         'updated_at',
         'product_received_at',
-        'refund_completed_at'
+        'refund_completed_at',
+        'verified_by',
+        'verified_at',
     ]
     
     fieldsets = (
@@ -67,6 +71,14 @@ class RefundRequestAdmin(admin.ModelAdmin):
         ('PayPal Refund', {
             'fields': ('paypal_refund_id', 'refund_completed_at')
         }),
+        ('⚠ Admin Verification (Required Before Processing)', {
+            'fields': ('admin_verified', 'verified_by', 'verified_at'),
+            'description': (
+                'The administrator MUST verify this refund request before any payment processing actions '
+                'can proceed. Use the "Verify & approve refund requests" action from the list view, '
+                'or check the box below. Applies to both guest and registered-user orders.'
+            ),
+        }),
         ('Admin Management', {
             'fields': ('admin_notes', 'rejection_reason')
         }),
@@ -79,6 +91,7 @@ class RefundRequestAdmin(admin.ModelAdmin):
     inlines = [RefundItemInline]
     
     actions = [
+        'verify_refund_requests',   # Must run FIRST before processing actions
         'mark_product_received',
         'manual_restock_items',
         'process_paypal_refund',
@@ -88,6 +101,25 @@ class RefundRequestAdmin(admin.ModelAdmin):
     ]
     
     # SIMPLIFIED METHODS - NO FORMAT_HTML AT ALL
+
+    def customer_type(self, obj):
+        """Indicate whether this is a guest or registered-user refund"""
+        try:
+            return "Registered" if obj.user else "Guest"
+        except Exception as e:
+            return f"Error: {e}"
+    customer_type.short_description = 'Customer Type'
+
+    def verification_status(self, obj):
+        """Show whether the admin has verified this refund request"""
+        try:
+            if obj.admin_verified:
+                verified_by = f" by {obj.verified_by.username}" if obj.verified_by else ""
+                return f"VERIFIED{verified_by}"
+            return "NOT VERIFIED"
+        except Exception as e:
+            return f"Error: {e}"
+    verification_status.short_description = 'Admin Verified'
     
     def order_id_simple(self, obj):
         """Simple order ID - plain text, no formatting"""
@@ -131,7 +163,53 @@ class RefundRequestAdmin(admin.ModelAdmin):
     # ═══════════════════════════════════════════════════════════════════
     # ADMIN ACTIONS
     # ═══════════════════════════════════════════════════════════════════
-    
+
+    def verify_refund_requests(self, request, queryset):
+        """
+        Step 0: Admin explicitly verifies and approves refund requests.
+
+        This MUST be done before 'process_paypal_refund' or 'complete_refund'
+        can run. Applies to both guest and registered-user orders.
+
+        What to check before verifying:
+          - Order ID and customer email match
+          - Refund reason is valid and items are listed correctly
+          - Guest orders: confirm email matches the original order record
+          - Registered orders: confirm the order belongs to the user account
+        """
+        already_verified = queryset.filter(admin_verified=True)
+        to_verify = queryset.filter(admin_verified=False)
+
+        if already_verified.exists():
+            self.message_user(
+                request,
+                f'{already_verified.count()} refund(s) were already verified — skipped.',
+                level=messages.WARNING
+            )
+
+        updated = 0
+        for refund in to_verify.exclude(status__in=['COMPLETED', 'REJECTED', 'CANCELLED']):
+            refund.admin_verified = True
+            refund.verified_by = request.user
+            refund.verified_at = timezone.now()
+            refund.save()
+            updated += 1
+
+        if updated:
+            self.message_user(
+                request,
+                f'{updated} refund request(s) verified by {request.user.username}. '
+                f'You may now proceed with "Mark product received" → "Mark as processing" → "Complete refund".',
+                level=messages.SUCCESS
+            )
+        else:
+            self.message_user(
+                request,
+                'No eligible refund requests to verify.',
+                level=messages.WARNING
+            )
+    verify_refund_requests.short_description = '✔ Verify & approve refund requests (run FIRST)'
+
     def mark_product_received(self, request, queryset):
         """Mark selected refunds as product received"""
         from .models import restock_refunded_items
@@ -197,8 +275,22 @@ class RefundRequestAdmin(admin.ModelAdmin):
     
     def process_paypal_refund(self, request, queryset):
         """Process PayPal refund (manual - admin must do this in PayPal)"""
+
+        # ── Verification gate ──────────────────────────────────────────
+        unverified = queryset.filter(status='PRODUCT_RECEIVED', admin_verified=False)
+        if unverified.exists():
+            ids = ', '.join(f'#{r.id}' for r in unverified)
+            self.message_user(
+                request,
+                f'Cannot process: refund(s) {ids} have NOT been admin-verified. '
+                f'Run "Verify & approve refund requests" first.',
+                level=messages.ERROR
+            )
+            return
+        # ──────────────────────────────────────────────────────────────
+
         updated = 0
-        for refund in queryset.filter(status='PRODUCT_RECEIVED'):
+        for refund in queryset.filter(status='PRODUCT_RECEIVED', admin_verified=True):
             refund.status = 'PROCESSING_REFUND'
             refund.save()
             updated += 1
@@ -213,9 +305,22 @@ class RefundRequestAdmin(admin.ModelAdmin):
     def complete_refund(self, request, queryset):
         """Complete the refund process"""
         from .models import process_rewards_refund
-        
+
+        # ── Verification gate ──────────────────────────────────────────
+        unverified = queryset.filter(status='PROCESSING_REFUND', admin_verified=False)
+        if unverified.exists():
+            ids = ', '.join(f'#{r.id}' for r in unverified)
+            self.message_user(
+                request,
+                f'Cannot complete: refund(s) {ids} have NOT been admin-verified. '
+                f'Run "Verify & approve refund requests" first.',
+                level=messages.ERROR
+            )
+            return
+        # ──────────────────────────────────────────────────────────────
+
         updated = 0
-        for refund in queryset.filter(status='PROCESSING_REFUND'):
+        for refund in queryset.filter(status='PROCESSING_REFUND', admin_verified=True):
             # Process rewards adjustments for registered users
             # NOTE: This ONLY deducts earned rewards, does NOT restore used rewards
             if refund.user:

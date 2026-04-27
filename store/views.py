@@ -16,12 +16,24 @@ def categories(request):
     return {'all_categories': all_categories}
 
 def brands(request):
-    """Context processor to get all unique brands with their product counts"""
-    all_brands = Product.objects.values_list('brand', flat=True).distinct().order_by('brand')
-    # Filter out empty brands and 'un-branded'
-    all_brands = [brand for brand in all_brands if brand and brand.lower() != 'un-branded']
+    """
+    Context processor to get categories grouped by their topic.
+    Each topic dropdown will display its own categories as clickable links.
+    For example:
+      - Video Games  → Nintendo Switch, PlayStation 5, Xbox Series X, etc.
+      - TCG          → Pokemon, Magic: The Gathering, Yu-Gi-Oh, etc. (once added)
+    """
     all_topics = Topic.objects.all().order_by('name')
-    return {'all_brands': all_brands, 'all_topics': all_topics,}
+
+    all_topics_with_categories = []
+    for topic in all_topics:
+        topic_categories = Category.objects.filter(topic=topic).order_by('name')
+        all_topics_with_categories.append({
+            'topic': topic,
+            'categories': topic_categories,
+        })
+
+    return {'all_topics_with_categories': all_topics_with_categories}
 
 def list_topics(request, topic_slug=None):
     topic = get_object_or_404(Topic, slug=topic_slug)
@@ -41,12 +53,10 @@ def list_category(request, category_slug=None):
 
 def list_brand(request, brand_name=None):
     """Display all products from a specific brand"""
-    # Decode URL-encoded brand name and get products
     brand_name = brand_name.replace('-', ' ')
     products = Product.objects.filter(brand__iexact=brand_name)
     
     if not products.exists():
-        # If no products found, try to find closest match
         products = Product.objects.filter(brand__icontains=brand_name)
     
     context = {
@@ -69,14 +79,12 @@ def search_products(request):
             Q(title__icontains=query) | 
             Q(brand__icontains=query) | 
             Q(description__icontains=query)
-        ).distinct()[:10]  # Limit to 10 results for AJAX
+        ).distinct()[:10]
     else:
         products = Product.objects.none()
-    # If this is an AJAX request, return HTML snippet for suggestions
     if is_ajax:
         html = render_to_string('store/search-suggestions.html', {'products': products, 'query': query})
         return HttpResponse(html)
-    # Otherwise, return full page
     context = {
         'products': products,
         'query': query,

@@ -119,6 +119,29 @@ class RefundRequest(models.Model):
     # Tracking
     tracking_number = models.CharField(max_length=200, blank=True, help_text="Customer's return tracking number")
     
+    # Admin verification — must be set before any payment processing action can proceed
+    admin_verified = models.BooleanField(
+        default=False,
+        help_text=(
+            "Administrator has reviewed and verified this refund request. "
+            "REQUIRED before 'Mark as processing PayPal refund' or 'Complete refund' actions can run. "
+            "Use the 'Verify & approve refund requests' action to set this flag."
+        )
+    )
+    verified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_refunds',
+        help_text="Admin user who verified this refund request"
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the refund was verified by an admin"
+    )
+
     # Admin notes
     admin_notes = models.TextField(blank=True, help_text="Internal notes for admin")
     rejection_reason = models.TextField(blank=True, help_text="Reason for rejection if applicable")
@@ -314,7 +337,3 @@ def restore_used_rewards(refund_request):
         
     except RewardAccount.DoesNotExist:
         return False
-
-
-
-    

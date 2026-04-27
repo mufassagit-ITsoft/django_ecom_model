@@ -49,8 +49,8 @@
 
         <ul class="navbar-nav me-auto mb-2 mb-md-0">
 
-            {% for topic in all_topics %}
-            <!-- Top-level dropdown: one per Topic (e.g. "Video Games") -->
+            {% for item in all_topics_with_categories %}
+            <!-- Top-level dropdown: one per Topic (e.g. "Video Games", "TCG") -->
             <li class="nav-item dropdown">
 
                 <a class="nav-link dropdown-toggle text-white" href="#"
@@ -58,40 +58,33 @@
                    role="button"
                    data-bs-toggle="dropdown"
                    aria-expanded="false">
-                    {{ topic.name | capfirst }}
+                    {{ item.topic.name | capfirst }}
                 </a>
 
                 <ul class="dropdown-menu" aria-labelledby="topicDropdown{{ forloop.counter }}">
 
-                    <!-- Link to full topic page -->
-                    <!--li>
-                        <a class="dropdown-item" href="{% url 'list-topic' topic.slug %}">
-                            {{ topic.name | capfirst }}
+                    <!-- Link to the full topic page (all products in this topic) -->
+                    <li>
+                        <a class="dropdown-item" href="{% url 'list-topic' item.topic.slug %}">
+                            <i class="fa fa-list me-2" aria-hidden="true"></i>
+                            All {{ item.topic.name | capfirst }}
                         </a>
-                    </li-->
-
-                    <!--li><hr class="dropdown-divider"></li-->
-
-                    <!-- Brands as a nested submenu -->
-                    <li class="dropdown-submenu">
-                        <a class="dropdown-item d-flex justify-content-between align-items-center"
-                           href="#"
-                           tabindex="-1">
-                            <span>
-                                <i class="fa fa-tag me-2" aria-hidden="true"></i> Brands
-                            </span>
-                        </a>
-
-                        <ul class="dropdown-menu">
-                            {% for brand in all_brands %}
-                            <li>
-                                <a class="dropdown-item" href="{% url 'list-brand' brand|slugify %}">
-                                    All {{ brand | capfirst }}
-                                </a>
-                            </li>
-                            {% endfor %}
-                        </ul>
                     </li>
+
+                    <li><hr class="dropdown-divider"></li>
+
+                    <!-- Categories belonging to this topic as direct links -->
+                    {% for category in item.categories %}
+                    <li>
+                        <a class="dropdown-item" href="{% url 'list-category' category.slug %}">
+                            {{ category.name | capfirst }}
+                        </a>
+                    </li>
+                    {% empty %}
+                    <li>
+                        <span class="dropdown-item text-muted fst-italic">No categories yet</span>
+                    </li>
+                    {% endfor %}
 
                 </ul>
 
